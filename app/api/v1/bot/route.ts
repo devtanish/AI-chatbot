@@ -102,14 +102,14 @@ const PREDEFINED_QA = [
 // Your database schema for AI to understand
 const DB_SCHEMA = `
 Tables:
-1. users (id, name, email, created_at, subscription_type)
-2. orders (id, user_id, total_amount, status, created_at)
-3. products (id, name, price, category, stock_count)
-4. transactions (id, order_id, payment_method, amount, status)
+1. User (id, name, email, createdAt, subscriptionType)
+2. Order (id, userId, totalAmount, status, createdAt)
+3. Product (id, name, price, category, stockCount)
+4. Transaction (id, orderId, paymentMethod, amount, status)
 
 Relationships:
-- orders.user_id -> users.id
-- transactions.order_id -> orders.id
+- Order.userId -> User.id
+- Transaction.orderId -> Order.id
 
 // --- FIELD DESCRIPTION: WHAT EACH FIELD HOLDS ---
 // 1. User Table:
@@ -139,11 +139,13 @@ Relationships:
 // amount: Monetary value of this specific payment (Float).
 // status: Result of the payment (e.g., 'Success', 'Failed').
 // orderId: Foreign Key linking to Order.id (which purchase it covers).
+
+
 `;
 
 // Initialize OpenRouter client - USE ENVIRONMENT VARIABLE!
 const openRouter = new OpenRouter({
-  apiKey: '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',
+  apiKey: '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',
 });
 
 // Helper function to extract content from OpenRouter response
@@ -199,13 +201,29 @@ async function generateSQLQuery(userMessage: string): Promise<string | null> {
         Rules:
         1. ONLY generate SELECT queries (no INSERT, UPDATE, DELETE)
         2. Always use parameterized placeholders like $1, $2 for user inputs
-        3. Return ONLY the SQL query, nothing else
-        4. If the question cannot be answered with the schema, respond with: CANNOT_QUERY
-        
-        FORMAT EXAMPLE:
-        SELECT <columns> FROM <table> WHERE <conditions>;
-        
-        Remember to only respond with the SQL query or CANNOT_QUERY.
+        3. Table and Column names (Identifiers) MUST be enclosed in double quotes (") to maintain case sensitivity.
+        4. String values MUST be enclosed in single quotes (').
+        5. Return ONLY the SQL query, nothing else
+        6. If the question cannot be answered with the schema, respond with: CANNOT_QUERY
+
+        FORMAT AND EXAMPLE QUERIES:
+        **Template Structure:**
+        SELECT <"Columns"> FROM "<Table>" WHERE "<ConditionColumn>" = $1;
+
+        1.  **Fetch a user's ID and name based on their email:**
+            SELECT id, "name" FROM "User" WHERE "email" = $1;
+
+        2.  **Get the total amount of all orders with a specific status:**
+            SELECT SUM("totalAmount") FROM "Order" WHERE "status" = $1;
+
+        3.  **List product names that are in a specific category and cost less than a given price:**
+            SELECT "name" FROM "Product" WHERE "category" = $1 AND "price" < $2;
+
+        4.  **Retrieve the payment method and amount for all transactions linked to a specific order ID:**
+            SELECT "paymentMethod", amount FROM "Transaction" WHERE "orderId" = $1;
+
+        5.  **Find the names of users who have 'Premium' subscription (using static string value):**
+            SELECT "name" FROM "User" WHERE "subscriptionType" = 'Premium';
         `,
       },
       {
@@ -217,13 +235,14 @@ async function generateSQLQuery(userMessage: string): Promise<string | null> {
 
   
   const query = extractContent(completion);
-//   console.log("\n\n\n\nSQL Generation Response:", query, "\n\n\n\n\n");
+  const realQuery = query?.replace(/\n/g, " ").replaceAll("`", "").replaceAll("sql", "")?.trim();
+  console.log("\n\n\n-\n" + realQuery + "\n-\n\n\n\n");
 
-  if (!query || query === "CANNOT_QUERY" || !query.toLowerCase().startsWith("select")) {
+  if (!realQuery || realQuery === "CANNOT_QUERY" || !realQuery.toLowerCase().startsWith("select")) {
     return null;
   }
 
-  return query;
+  return realQuery;
 }
 
 // Step 3: Execute query and get results (implement your DB connection)

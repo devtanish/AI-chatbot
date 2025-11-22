@@ -303,8 +303,9 @@ export default function ChatWidget() {
                     <button
                       onClick={async () => {
                         setInput('');
+                        setMessages(prev => [...prev, { role: 'user', content: input.trim(), time: new Date() }]);
                         const data = await sendToBackend(input); 
-                        console.log(data);
+                        setMessages(prev => [...prev, { role: 'assistant', content: data, time: new Date() }]);
                       }}
                       disabled={!input.trim() || isTyping}
                       className="bg-emerald-500 text-white p-2 rounded-full hover:bg-emerald-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
