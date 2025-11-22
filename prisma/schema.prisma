@@ -1,0 +1,59 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = "postgresql://neondb_owner:npg_WhedTOL6R9Kn@ep-blue-breeze-ad8wo3px-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+}
+
+model User {
+  id               Int       @id @default(autoincrement())
+  name             String
+  email            String    @unique
+  subscriptionType String?
+  createdAt        DateTime  @default(now())
+
+  // Relations
+  orders           Order[]
+}
+
+model Order {
+  id         Int         @id @default(autoincrement())
+  totalAmount Float
+  status      String
+  createdAt   DateTime   @default(now())
+
+  // Foreign Key
+  userId     Int
+  user       User        @relation(fields: [userId], references: [id])
+
+  // Relations
+  transactions Transaction[]
+}
+
+model Product {
+  id          Int       @id @default(autoincrement())
+  name        String
+  price       Float
+  category    String
+  stockCount  Int
+}
+
+model Transaction {
+  id            Int        @id @default(autoincrement())
+  paymentMethod String
+  amount        Float
+  status        String
+
+  // Foreign Key
+  orderId       Int
+  order         Order      @relation(fields: [orderId], references: [id])
+}
