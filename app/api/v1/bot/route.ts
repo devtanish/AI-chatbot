@@ -1,10 +1,14 @@
+// ========================================
+// FILE: app/api/chat/route.ts
+// ========================================
+
 import { NextRequest, NextResponse } from "next/server";
 import { OpenRouter } from "@openrouter/sdk";
 import { PrismaClient } from "@/lib/generated/prisma";
 
 const prisma = new PrismaClient();
 
-// Define response type based on OpenRouter's actual response structure
+// OpenRouter response types
 interface ChatMessage {
   role: string;
   content: string | null;
@@ -19,87 +23,171 @@ interface ChatResponse {
   choices: ChatChoice[];
 }
 
-// Your predefined Q&A pairs
+// Initialize OpenRouter
+const openRouter = new OpenRouter({
+  apiKey: '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',
+});
+
+// PREDEFINED Q&A DATABASE
 const PREDEFINED_QA = [
-  { question: "How can I purchase a course?", answer: "Select the course, click 'Enroll Now', and complete payment through our secure payment gateway." },
-  { question: "Do you provide a certificate after completing a course?", answer: "Yes, every course includes a verified certificate upon successful completion." },
-  { question: "Are your courses suitable for beginners?", answer: "Yes, we offer beginner-to-advanced level courses with step-by-step guidance." },
-  { question: "Can I access the courses on mobile?", answer: "Yes, courses can be accessed from mobile, tablet, and desktop." },
-  { question: "Do the courses include downloadable study materials?", answer: "Yes, selected courses provide downloadable PDFs and notes." },
-  { question: "Is there a time limit for completing the courses?", answer: "Most courses offer lifetime access; however, exam-preparation batches may have a time limit." },
-  { question: "Can I learn at my own pace?", answer: "Yes, you can learn anytime at your own convenience with self-paced modules." },
-  { question: "What should I do if a video doesn't load?", answer: "Clear cache, refresh the page, or contact support if the issue persists." },
-  { question: "Can I switch to a different course after enrollment?", answer: "Switching is allowed within 48 hours of purchase if the progress is below 10%." },
-  { question: "Do you offer live interactive sessions?", answer: "Yes, selected courses include weekly live mentor sessions." },
-  { question: "How do I find colleges based on my marks?", answer: "Use the College Finder and enter your marks, stream, city, and budget to view matches." },
-  { question: "Which cities do you cover for college listings?", answer: "We cover colleges and schools across India including metro and non-metro cities." },
-  { question: "Can I apply to colleges directly through your website?", answer: "Yes, many colleges accept direct applications through our portal." },
-  { question: "Do you list both government and private institutions?", answer: "Yes, we list government, private, and autonomous institutions with full details." },
-  { question: "How can I compare colleges?", answer: "Use the Compare Colleges tool to compare rankings, fees, placements, and exams." },
-  { question: "Do you show placement records of colleges?", answer: "Yes, each college profile includes placement stats, top recruiters, and salary ranges." },
-  { question: "How do I check admission deadlines?", answer: "Visit any college page to view application deadlines and entrance exam timelines." },
-  { question: "Can I get personalized college recommendations?", answer: "Yes, you can request personalized guidance from our admission experts." },
-  { question: "Do you guarantee college admission?", answer: "No, we do not guarantee admission. We only assist with guidance and information." },
-  { question: "Is there an application fee for applying to colleges?", answer: "Application fees vary by college and will be shown during the application process." },
-  { question: "How do I apply for scholarships?", answer: "Go to Scholarships → choose the scholarship → follow the application steps given." },
-  { question: "Are scholarships available for all students?", answer: "Scholarship eligibility depends on academic performance, income, category, or talent." },
-  { question: "Do you help with government scholarship applications?", answer: "Yes, we provide information and step-by-step assistance for government scholarships." },
-  { question: "Do you offer merit-based scholarships?", answer: "Yes, many scholarships on our site are purely merit-based." },
-  { question: "Are scholarships provided by your website?", answer: "We publish scholarships from government and private organizations; we don't fund them." },
-  { question: "How do I know if I'm eligible for a scholarship?", answer: "Each scholarship page includes complete eligibility details and required documents." },
-  { question: "Is there a fee for applying to scholarships?", answer: "Most scholarships are free to apply; if there are charges, they are mentioned clearly." },
-  { question: "Can international students apply for these scholarships?", answer: "Eligibility varies per scholarship — check the details on the scholarship page." },
-  { question: "Do scholarships cover full tuition?", answer: "Some provide full coverage while others partially cover fees, books, hostel, or living costs." },
-  { question: "How long does it take to receive scholarship results?", answer: "It depends on the organization offering the scholarship — usually 30–90 days." },
-  { question: "What payment methods are accepted?", answer: "We support UPI, debit/credit cards, net banking, EMI, and wallets." },
-  { question: "Do you offer EMI or installment options?", answer: "Yes, EMI options are available for selected courses above a certain amount." },
-  { question: "Is GST included in the course price?", answer: "Yes, all listed prices are inclusive of taxes unless specified otherwise." },
-  { question: "What is your refund policy?", answer: "Refunds are available within 7 days if less than 20% content is completed." },
-  { question: "How long does it take to receive a refund?", answer: "Refunds are processed within 7–10 business days to the original payment method." },
-  { question: "Can I get a refund after completing a course?", answer: "Refunds are not applicable after course completion." },
-  { question: "What if my payment fails?", answer: "If money is deducted, it will be auto-refunded within 3–7 days; otherwise try again." },
-  { question: "Why is my coupon code not working?", answer: "Coupons may expire or have usage limits; verify the terms before applying." },
-  { question: "Do you offer bulk discounts?", answer: "Yes, institutions and groups can request customized pricing." },
-  { question: "Are there free trial classes?", answer: "Yes, selected courses offer free demo videos before purchase." },
-  { question: "How can I contact customer support?", answer: "You can reach support via live chat, email, or helpline number available on the Contact page." },
-  { question: "What are your business hours?", answer: "Support is available Monday–Saturday from 9 AM to 8 PM." },
-  { question: "Do you provide call support?", answer: "Yes, call support is available during working hours." },
-  { question: "Can I track the status of my college application?", answer: "Yes, login to your dashboard to view your application status." },
-  { question: "Can I request a callback from the team?", answer: "Yes, click the 'Request Callback' button on our support page." },
-  { question: "Do you support regional languages?", answer: "Yes, support is available in English and Hindi." },
-  { question: "Do you provide career counseling?", answer: "Yes, career counseling sessions can be booked from the Mentorship section." },
-  { question: "Is there 24/7 support available?", answer: "Email support is available 24/7; phone support follows working hours." },
-  { question: "Can I report incorrect information on the site?", answer: "Yes, use the 'Report Info' button on any page to submit corrections." },
-  { question: "Do you support visually impaired or disabled users?", answer: "Yes, we provide accessibility support and special guidance on request." },
-  { question: "How do I reset my password?", answer: "Go to Login → Forgot Password → enter your email to receive a reset link." },
-  { question: "How do I update my profile details?", answer: "Login → Profile Settings → Edit and Save changes." },
-  { question: "How do I change my registered mobile number?", answer: "Go to Profile → Verify identity → Update mobile number." },
-  { question: "How do I delete my account?", answer: "Send an email to support with your registered mobile/email to request account deletion." },
-  { question: "Can I have multiple accounts?", answer: "Multiple accounts are not permitted; duplicates may be blocked." },
-  { question: "Why am I not receiving verification OTP?", answer: "Check spam SMS, resend OTP, or contact support if issue persists." },
-  { question: "How do I enable notifications?", answer: "Go to Settings → Notifications → enable alerts for updates." },
-  { question: "Can I download an invoice for my payment?", answer: "Yes, invoices are available under Orders in your dashboard." },
-  { question: "Can parents create accounts for children?", answer: "Yes, parents can create accounts for school/college-going children." },
-  { question: "Is my data safe?", answer: "Yes, we follow encrypted and GDPR-compliant security standards." },
-  { question: "Do you provide internship opportunities?", answer: "Yes, selected career-oriented courses include internship opportunities." },
-  { question: "Do you help with resume building?", answer: "Yes, resume templates and mentor guidance are included in placement-focused courses." },
-  { question: "Do you provide job placement assistance?", answer: "Some premium courses include placement support through hiring partners." },
-  { question: "Are interview preparation resources available?", answer: "Yes, we provide mock interviews, communication training, and aptitude tests." },
-  { question: "Can I upload my resume for hiring opportunities?", answer: "Yes, students can upload resumes for job matching after eligible courses." },
-  { question: "Are company connections genuine?", answer: "Yes, we partner only with verified and reputed organizations." },
-  { question: "Do you have programs for school students?", answer: "Yes, we offer coding, communication, Olympiad prep, and career awareness courses for school students." },
-  { question: "Do you provide entrance exam training?", answer: "Yes, we offer training for JEE, NEET, CUET, CAT, UPSC, and more." },
-  { question: "Do you provide online tuition classes?", answer: "Yes, we provide Class 1–12 online tuition for CBSE, ICSE, and state boards." },
-  { question: "Can teachers collaborate with your platform?", answer: "Yes, qualified teachers can apply to become course creators or curriculum partners." },
-  { question: "Can institutes list their courses on your website?", answer: "Yes, educational institutions can partner with us by submitting onboarding details." },
-  { question: "Do you organize workshops and webinars?", answer: "Yes, we conduct free and paid workshops every month." },
-  { question: "How can I receive updates about new colleges and courses?", answer: "Subscribe to our newsletter to receive regular updates and alerts." },
-  { question: "Do you have an Android app?", answer: "Yes, our mobile app is available on the Play Store to access all services." },
-  { question: "Do you have an iOS app?", answer: "The iOS version is under development and will be launched soon." },
-  { question: "Can I share my course progress on LinkedIn?", answer: "Yes, you can share certificates and course milestones directly to LinkedIn." }
+  { 
+    question: "How can I purchase a course?", 
+    answer: "Select the course, click 'Enroll Now', and complete payment through our secure payment gateway.",
+    keywords: ["purchase", "buy", "enroll", "payment", "pay for"]
+  },
+  { 
+    question: "Do you provide a certificate after completing a course?", 
+    answer: "Yes, every course includes a verified certificate upon successful completion.",
+    keywords: ["certificate", "certification", "credential", "completion"]
+  },
+  { 
+    question: "Are your courses suitable for beginners?", 
+    answer: "Yes, we offer beginner-to-advanced level courses with step-by-step guidance.",
+    keywords: ["beginner", "starter", "new to", "learning level"]
+  },
+  { 
+    question: "Can I access the courses on mobile?", 
+    answer: "Yes, courses can be accessed from mobile, tablet, and desktop.",
+    keywords: ["mobile", "phone", "tablet", "device", "android", "ios"]
+  },
+  { 
+    question: "Do the courses include downloadable study materials?", 
+    answer: "Yes, selected courses provide downloadable PDFs and notes.",
+    keywords: ["download", "pdf", "materials", "notes", "resources"]
+  },
+  { 
+    question: "Is there a time limit for completing the courses?", 
+    answer: "Most courses offer lifetime access; however, exam-preparation batches may have a time limit.",
+    keywords: ["time limit", "deadline", "duration", "lifetime", "access period"]
+  },
+  { 
+    question: "Can I learn at my own pace?", 
+    answer: "Yes, you can learn anytime at your own convenience with self-paced modules.",
+    keywords: ["own pace", "self-paced", "flexible", "anytime"]
+  },
+  { 
+    question: "What should I do if a video doesn't load?", 
+    answer: "Clear cache, refresh the page, or contact support if the issue persists.",
+    keywords: ["video", "loading", "not working", "playback", "stuck"]
+  },
+  { 
+    question: "Can I switch to a different course after enrollment?", 
+    answer: "Switching is allowed within 48 hours of purchase if the progress is below 10%.",
+    keywords: ["switch", "change course", "different course", "swap"]
+  },
+  { 
+    question: "Do you offer live interactive sessions?", 
+    answer: "Yes, selected courses include weekly live mentor sessions.",
+    keywords: ["live", "interactive", "mentor", "session", "webinar"]
+  },
+  { 
+    question: "How do I find colleges based on my marks?", 
+    answer: "Use the College Finder and enter your marks, stream, city, and budget to view matches.",
+    keywords: ["college finder", "marks", "search college", "find college"]
+  },
+  { 
+    question: "Which cities do you cover for college listings?", 
+    answer: "We cover colleges and schools across India including metro and non-metro cities.",
+    keywords: ["cities", "locations", "coverage", "area", "where"]
+  },
+  { 
+    question: "Can I apply to colleges directly through your website?", 
+    answer: "Yes, many colleges accept direct applications through our portal.",
+    keywords: ["apply", "application", "admission", "direct apply"]
+  },
+  { 
+    question: "Do you list both government and private institutions?", 
+    answer: "Yes, we list government, private, and autonomous institutions with full details.",
+    keywords: ["government", "private", "institution type", "college type"]
+  },
+  { 
+    question: "How can I compare colleges?", 
+    answer: "Use the Compare Colleges tool to compare rankings, fees, placements, and exams.",
+    keywords: ["compare", "comparison", "versus", "vs", "difference"]
+  },
+  { 
+    question: "Do you show placement records of colleges?", 
+    answer: "Yes, each college profile includes placement stats, top recruiters, and salary ranges.",
+    keywords: ["placement", "recruitment", "jobs", "companies", "salary"]
+  },
+  { 
+    question: "How do I check admission deadlines?", 
+    answer: "Visit any college page to view application deadlines and entrance exam timelines.",
+    keywords: ["deadline", "last date", "admission date", "timeline"]
+  },
+  { 
+    question: "Can I get personalized college recommendations?", 
+    answer: "Yes, you can request personalized guidance from our admission experts.",
+    keywords: ["recommendation", "suggest", "personalized", "guidance"]
+  },
+  { 
+    question: "Do you guarantee college admission?", 
+    answer: "No, we do not guarantee admission. We only assist with guidance and information.",
+    keywords: ["guarantee", "assured", "confirm admission"]
+  },
+  { 
+    question: "Is there an application fee for applying to colleges?", 
+    answer: "Application fees vary by college and will be shown during the application process.",
+    keywords: ["application fee", "fee", "cost", "charges"]
+  },
+  { 
+    question: "How do I apply for scholarships?", 
+    answer: "Go to Scholarships → choose the scholarship → follow the application steps given.",
+    keywords: ["scholarship", "financial aid", "grant", "funding"]
+  },
+  { 
+    question: "Are scholarships available for all students?", 
+    answer: "Scholarship eligibility depends on academic performance, income, category, or talent.",
+    keywords: ["eligibility", "who can apply", "criteria", "qualify"]
+  },
+  { 
+    question: "Do you help with government scholarship applications?", 
+    answer: "Yes, we provide information and step-by-step assistance for government scholarships.",
+    keywords: ["government scholarship", "national scholarship", "state scholarship"]
+  },
+  { 
+    question: "What is your refund policy?", 
+    answer: "Refunds are available within 7 days if less than 20% content is completed.",
+    keywords: ["refund", "money back", "return", "cancel"]
+  },
+  { 
+    question: "How long does it take to receive a refund?", 
+    answer: "Refunds are processed within 7–10 business days to the original payment method.",
+    keywords: ["refund time", "how long", "processing time"]
+  },
+  { 
+    question: "What payment methods are accepted?", 
+    answer: "We support UPI, debit/credit cards, net banking, EMI, and wallets.",
+    keywords: ["payment", "pay", "method", "upi", "card", "wallet"]
+  },
+  { 
+    question: "Do you offer EMI or installment options?", 
+    answer: "Yes, EMI options are available for selected courses above a certain amount.",
+    keywords: ["emi", "installment", "monthly payment", "split payment"]
+  },
+  { 
+    question: "How can I contact customer support?", 
+    answer: "You can reach support via live chat, email, or helpline number available on the Contact page.",
+    keywords: ["support", "help", "contact", "customer service", "assistance"]
+  },
+  { 
+    question: "What are your business hours?", 
+    answer: "Support is available Monday–Saturday from 9 AM to 8 PM.",
+    keywords: ["hours", "timing", "when available", "working hours"]
+  },
+  { 
+    question: "How do I reset my password?", 
+    answer: "Go to Login → Forgot Password → enter your email to receive a reset link.",
+    keywords: ["password", "reset", "forgot", "login issue"]
+  },
+  { 
+    question: "Is my data safe?", 
+    answer: "Yes, we follow encrypted and GDPR-compliant security standards.",
+    keywords: ["security", "safe", "privacy", "data protection", "secure"]
+  },
 ];
 
-// Your database schema for AI to understand
+// DATABASE SCHEMA
 const DB_SCHEMA = `
 Tables:
 1. User (id, name, email, createdAt, subscriptionType)
@@ -111,180 +199,375 @@ Relationships:
 - Order.userId -> User.id
 - Transaction.orderId -> Order.id
 
-// --- FIELD DESCRIPTION: WHAT EACH FIELD HOLDS ---
-// 1. User Table:
-// id: Primary Key, unique user identifier.
-// name: User's full name.
-// email: User's unique email address.
-// subscriptionType: User's service tier (e.g., 'Premium', 'Basic').
-// createdAt: Timestamp of account creation.
+Field Descriptions:
+User: id (PK), name (full name), email (unique), subscriptionType (Premium/Basic), createdAt (timestamp)
+Product: id (PK), name (title), price (float), category (classification), stockCount (integer)
+Order: id (PK), totalAmount (float), status (Shipped/Completed), createdAt (timestamp), userId (FK to User)
+Transaction: id (PK), paymentMethod (Credit Card/PayPal), amount (float), status (Success/Failed), orderId (FK to Order)
 
-// 2. Product Table:
-// id: Primary Key, unique product identifier.
-// name: Product's official title.
-// price: Selling price of the product (Float).
-// category: Product classification (e.g., 'Electronics').
-// stockCount: Current inventory quantity (Integer).
-
-// 3. Order Table:
-// id: Primary Key, unique purchase ID.
-// totalAmount: Final monetary amount of the order (Float).
-// status: Fulfillment stage (e.g., 'Shipped', 'Completed').
-// createdAt: Timestamp the order was placed.
-// userId: Foreign Key linking to User.id (who placed the order).
-
-// 4. Transaction Table:
-// id: Primary Key, unique payment record ID.
-// paymentMethod: How the payment was processed (e.g., 'Credit Card', 'PayPal').
-// amount: Monetary value of this specific payment (Float).
-// status: Result of the payment (e.g., 'Success', 'Failed').
-// orderId: Foreign Key linking to Order.id (which purchase it covers).
-
-
+IMPORTANT SQL RULES:
+- ONLY SELECT queries allowed
+- Table/column names MUST use double quotes: "User", "name"
+- String values MUST use single quotes: 'Premium'
+- ALWAYS add LIMIT 10 for safety
 `;
 
-// Initialize OpenRouter client - USE ENVIRONMENT VARIABLE!
-const openRouter = new OpenRouter({
-  apiKey: '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',
-});
-
-// Helper function to extract content from OpenRouter response
+// Helper function
 function extractContent(response: ChatResponse): string | null {
   return response?.choices?.[0]?.message?.content?.trim() ?? null;
 }
 
-// Step 1: Check if question matches predefined Q&A
-async function findPredefinedAnswer(userMessage: string): Promise<string | null> {
-  const completion = await openRouter.chat.send({
-    model: "google/gemma-3-27b-it:free",
-    messages: [
-      {
-        role: "system",
-        content: `You are a question matcher. Given a user question and a list of predefined Q&A pairs, determine if the user's question matches any predefined question.
-
-        If there's a match (even if worded differently), respond with ONLY the exact matching question text.
-        If no match, respond with exactly: NO_MATCH
-
-        Predefined questions:
-        ${PREDEFINED_QA.map((qa) => `- ${qa.question}`).join("\n")}`,
-      },
-      {
-        role: "user",
-        content: userMessage,
-      },
-    ],
-  }) as ChatResponse;
-
-  const response = extractContent(completion);
-
-  if (!response || response === "NO_MATCH") return null;
-
-  const match = PREDEFINED_QA.find(
-    (qa) => qa.question.toLowerCase() === response.toLowerCase()
-  );
-
-  return match?.answer ?? null;
-}
-
-// Step 2: Generate SQL query from natural language
-async function generateSQLQuery(userMessage: string): Promise<string | null> {
-  const completion = await openRouter.chat.send({
-    model: "google/gemma-3-27b-it:free",
-    messages: [
-      {
-        role: "system",
-        content: `You are a SQL query generator. Given a database schema and a user question, generate a safe SELECT query to fetch the required data.
-
-        Database Schema:
-        ${DB_SCHEMA}
-
-        Rules:
-        1. ONLY generate SELECT queries (no INSERT, UPDATE, DELETE)
-        2. Always use parameterized placeholders like $1, $2 for user inputs
-        3. Table and Column names (Identifiers) MUST be enclosed in double quotes (") to maintain case sensitivity.
-        4. String values MUST be enclosed in single quotes (').
-        5. Return ONLY the SQL query, nothing else
-        6. If the question cannot be answered with the schema, respond with: CANNOT_QUERY
-
-        FORMAT AND EXAMPLE QUERIES:
-        **Template Structure:**
-        SELECT <"Columns"> FROM "<Table>" WHERE "<ConditionColumn>" = $1;
-
-        1.  **Fetch a user's ID and name based on their email:**
-            SELECT id, "name" FROM "User" WHERE "email" = $1;
-
-        2.  **Get the total amount of all orders with a specific status:**
-            SELECT SUM("totalAmount") FROM "Order" WHERE "status" = $1;
-
-        3.  **List product names that are in a specific category and cost less than a given price:**
-            SELECT "name" FROM "Product" WHERE "category" = $1 AND "price" < $2;
-
-        4.  **Retrieve the payment method and amount for all transactions linked to a specific order ID:**
-            SELECT "paymentMethod", amount FROM "Transaction" WHERE "orderId" = $1;
-
-        5.  **Find the names of users who have 'Premium' subscription (using static string value):**
-            SELECT "name" FROM "User" WHERE "subscriptionType" = 'Premium';
-        `,
-      },
-      {
-        role: "user",
-        content: userMessage,
-      },
-    ],
-  }) as ChatResponse;
-
-  
-  const query = extractContent(completion);
-  const realQuery = query?.replace(/\n/g, " ").replaceAll("`", "").replaceAll("sql", "")?.trim();
-  console.log("\n\n\n-\n" + realQuery + "\n-\n\n\n\n");
-
-  if (!realQuery || realQuery === "CANNOT_QUERY" || !realQuery.toLowerCase().startsWith("select")) {
-    return null;
-  }
-
-  return realQuery;
-}
-
-// Step 3: Execute query and get results (implement your DB connection)
-async function executeQuery(sql: string): Promise<unknown[]> {
+// STEP 1: INTENT CLASSIFICATION (FIXED)
+async function determineIntent(message: string): Promise<'predefined' | 'database' | 'general'> {
   try {
-    // Use Prisma's $queryRawUnsafe for dynamic SQL queries
-    const results = await prisma.$queryRawUnsafe(sql);
+    const lowerMsg = message.toLowerCase().trim();
     
-    // Ensure we always return an array
-    if (Array.isArray(results)) {
-      return results;
+    // PRIORITY 1: Greetings and conversational patterns
+    const greetingPatterns = [
+      /^(hi|hello|hey|greetings|sup|wassup|yo)$/,
+      /^(good morning|good afternoon|good evening)$/,
+      /^(how are you|whats up|what's up|howdy)$/,
+      /^(thanks|thank you|thx|ty)$/,
+      /^(bye|goodbye|see you|cya|later)$/,
+    ];
+    
+    const identityPatterns = [
+      /who are you/,
+      /what are you/,
+      /what can you do/,
+      /help me/,
+      /introduce yourself/,
+      /tell me about yourself/,
+    ];
+    
+    // Check greeting patterns first
+    if (greetingPatterns.some(pattern => pattern.test(lowerMsg)) || 
+        identityPatterns.some(pattern => pattern.test(lowerMsg))) {
+      console.log('→ Matched greeting/identity pattern');
+      return 'general';
     }
     
-    return [results];
+    // PRIORITY 2: Explicit database queries
+    const dbKeywords = ['show', 'list', 'fetch', 'get', 'display', 'select', 'query', 'find all', 'retrieve'];
+    const dataKeywords = ['users', 'orders', 'products', 'transactions', 'data', 'records', 'entries', 'database'];
+    
+    const hasDbKeyword = dbKeywords.some(k => lowerMsg.includes(k));
+    const hasDataKeyword = dataKeywords.some(k => lowerMsg.includes(k));
+    
+    // Only classify as database if BOTH keywords present AND question is data-focused
+    if (hasDbKeyword && hasDataKeyword && lowerMsg.length > 10) {
+      return 'database';
+    }
+    
+    // PRIORITY 3: Use AI for ambiguous cases
+    const completion = await openRouter.chat.send({
+      model: "google/gemma-3-27b-it:free",
+      messages: [
+        {
+          role: "system",
+          content: `You are an intent classifier. Classify user messages into exactly ONE category:
+
+**GENERAL** - Use for:
+- Greetings: "hi", "hello", "hey", "good morning"
+- Identity questions: "who are you", "what are you", "what can you do"
+- Casual conversation: "how are you", "thanks", "goodbye"
+- Small talk or chitchat
+- Off-topic questions
+
+**PREDEFINED** - Use ONLY for specific educational platform questions about:
+- Courses, certificates, learning materials, course access
+- Colleges, admissions, applications, college finder
+- Scholarships, financial aid, eligibility
+- Payments, refunds, EMI, pricing
+- Platform features, technical issues
+- Policies and guidelines
+
+**DATABASE** - Use ONLY for explicit data retrieval requests:
+- "show all users", "list my orders", "get user data"
+- "find products", "display transactions", "query database"
+- Must mention data/records/users/orders/products explicitly
+
+CRITICAL RULES:
+1. If unsure, choose GENERAL (default to conversation)
+2. Only choose DATABASE if explicitly asking for data retrieval
+3. Only choose PREDEFINED if asking about platform features
+
+Respond with ONLY ONE WORD: general, predefined, or database`,
+        },
+        {
+          role: "user",
+          content: message,
+        },
+      ],
+      temperature: 0.3,
+    }) as ChatResponse;
+
+    const intent = extractContent(completion)?.toLowerCase().trim();
+    console.log('→ AI classified as:', intent);
+    
+    // Validate and default to general
+    if (intent === 'predefined' || intent === 'database' || intent === 'general') {
+      return intent;
+    }
+    
+    console.log('Invalid AI response, defaulting to general');
+    return 'general';
+    
   } catch (error) {
-    console.error("Database query error:", error);
-    throw error;
+    console.error('Intent classification error:', error);
+    return 'general'; // Always default to general on error
   }
 }
 
-// Step 4: Generate natural language response from data
-async function generateResponse(userMessage: string, data: unknown[]): Promise<string> {
-  const completion = await openRouter.chat.send({
-    model: "google/gemma-3-27b-it:free",
-    messages: [
-      {
-        role: "system",
-        content: `You are a helpful assistant. Given the user's question and data from the database, provide a clear, conversational response.
+// STEP 2: PREDEFINED Q&A HANDLER
+async function handlePredefined(message: string): Promise<string | null> {
+  try {
+    // Fast keyword matching first
+    const lowerMessage = message.toLowerCase();
+    const candidates: typeof PREDEFINED_QA = [];
+    
+    for (const qa of PREDEFINED_QA) {
+      const hasKeyword = qa.keywords.some(keyword => 
+        lowerMessage.includes(keyword.toLowerCase())
+      );
+      
+      if (hasKeyword) {
+        candidates.push(qa);
+      }
+    }
+    
+    // If no keyword matches, try AI matching
+    if (candidates.length === 0) {
+      const completion = await openRouter.chat.send({
+        model: "google/gemma-3-27b-it:free",
+        messages: [
+          {
+            role: "system",
+            content: `Match the user question to ONE predefined question. Return ONLY the matching question text or "NO_MATCH".
 
-        Be concise but informative. If the data is empty, politely say no results were found.`,
-      },
-      {
-        role: "user",
-        content: `Question: ${userMessage}\n\nData: ${JSON.stringify(data, null, 2)}`,
-      },
-    ],
-  }) as ChatResponse;
+Predefined questions:
+${PREDEFINED_QA.map((qa) => `- ${qa.question}`).join("\n")}`,
+          },
+          {
+            role: "user",
+            content: message,
+          },
+        ],
+      }) as ChatResponse;
 
-  return extractContent(completion) ?? "I couldn't generate a response.";
+      const response = extractContent(completion);
+      
+      if (!response || response === "NO_MATCH") {
+        return null;
+      }
+
+      const match = PREDEFINED_QA.find(
+        (qa) => qa.question.toLowerCase() === response.toLowerCase()
+      );
+
+      return match?.answer ?? null;
+    }
+    
+    // If multiple keyword matches, use AI to pick best one
+    if (candidates.length > 1) {
+      const completion = await openRouter.chat.send({
+        model: "google/gemma-3-27b-it:free",
+        messages: [
+          {
+            role: "system",
+            content: `Select the BEST matching question or return "NO_MATCH".
+
+Candidates:
+${candidates.map((qa) => `- ${qa.question}`).join("\n")}`,
+          },
+          {
+            role: "user",
+            content: message,
+          },
+        ],
+      }) as ChatResponse;
+
+      const response = extractContent(completion);
+      
+      if (!response || response === "NO_MATCH") {
+        return candidates[0].answer;
+      }
+
+      const match = candidates.find(
+        (qa) => qa.question.toLowerCase() === response.toLowerCase()
+      );
+
+      return match?.answer ?? candidates[0].answer;
+    }
+    
+    // Single keyword match - return directly
+    return candidates[0].answer;
+    
+  } catch (error) {
+    console.error('Predefined Q&A error:', error);
+    return null;
+  }
 }
 
-// Main handler
+// STEP 3: DATABASE QUERY HANDLER
+async function handleDatabase(message: string): Promise<string | null> {
+  try {
+    // Generate SQL
+    const completion = await openRouter.chat.send({
+      model: "google/gemma-3-27b-it:free",
+      messages: [
+        {
+          role: "system",
+          content: `You are a SQL generator. Generate SAFE SELECT queries only.
+
+${DB_SCHEMA}
+
+Return ONLY the SQL query or "CANNOT_QUERY" if impossible.
+
+Example:
+User: "Show all premium users"
+Response: SELECT "id", "name", "email" FROM "User" WHERE "subscriptionType" = 'Premium' LIMIT 10`,
+        },
+        {
+          role: "user",
+          content: message,
+        },
+      ],
+    }) as ChatResponse;
+
+    const rawSQL = extractContent(completion);
+    
+    if (!rawSQL || rawSQL === "CANNOT_QUERY") {
+      return null;
+    }
+
+    // Clean SQL
+    const sql = rawSQL
+      .replace(/```sql/g, '')
+      .replace(/```/g, '')
+      .replace(/\n/g, ' ')
+      .replace(/sql/gi, '')
+      .trim();
+
+    console.log('Generated SQL:', sql);
+
+    // Safety check
+    if (!sql.toLowerCase().startsWith('select')) {
+      console.error('Non-SELECT query rejected:', sql);
+      return null;
+    }
+
+    // Execute query
+    const results = await prisma.$queryRawUnsafe(sql);
+    const dataArray = Array.isArray(results) ? results : [results];
+
+    console.log('Query results:', dataArray.length, 'rows');
+
+    // Generate response
+    const responseCompletion = await openRouter.chat.send({
+      model: "google/gemma-3-27b-it:free",
+      messages: [
+        {
+          role: "system",
+          content: `Convert database results into a clear, conversational response. Be concise. If empty, say "No results found."`,
+        },
+        {
+          role: "user",
+          content: `Question: ${message}\n\nData: ${JSON.stringify(dataArray, null, 2)}`,
+        },
+      ],
+    }) as ChatResponse;
+
+    return extractContent(responseCompletion) || 'No results found.';
+
+  } catch (error) {
+    console.error('Database query error:', error);
+    return null;
+  }
+}
+
+// STEP 4: GENERAL AI HANDLER (IMPROVED)
+async function handleGeneral(message: string): Promise<string> {
+  try {
+    const completion = await openRouter.chat.send({
+      model: "google/gemma-3-27b-it:free",
+      messages: [
+        {
+          role: "system",
+          content: `You are EduBot, a friendly educational platform assistant. 
+
+Your role:
+- Help students find courses, colleges, and scholarships
+- Answer questions about platform features and policies
+- Provide guidance on admissions and career planning
+- Be warm, helpful, and conversational
+
+Respond naturally to:
+- Greetings (hi, hello, hey) → Greet warmly and offer help
+- Identity questions (who are you, what can you do) → Introduce yourself briefly
+- Gratitude (thanks, thank you) → Acknowledge kindly
+- Goodbyes (bye, see you) → Wish them well
+- General conversation → Be friendly and helpful
+
+Keep responses concise (2-4 sentences). Always sound human and approachable.`,
+        },
+        {
+          role: "user",
+          content: message,
+        },
+      ],
+      temperature: 0.7,
+    }) as ChatResponse;
+
+    const response = extractContent(completion);
+    
+    if (!response) {
+      // Enhanced fallbacks
+      const lowerMsg = message.toLowerCase();
+      
+      if (lowerMsg.match(/^(hi|hello|hey|greetings|sup)$/)) {
+        return "Hello! 👋 I'm EduBot, your educational assistant. I can help you with courses, colleges, scholarships, and more. What would you like to know?";
+      }
+      if (lowerMsg.includes('who are you') || lowerMsg.includes('what are you')) {
+        return "I'm EduBot, your friendly educational platform assistant! I help students find courses, explore colleges, apply for scholarships, and navigate our platform. How can I assist you today?";
+      }
+      if (lowerMsg.includes('what can you do') || lowerMsg.includes('help me')) {
+        return "I can help you with:\n• Finding and enrolling in courses\n• Discovering colleges and admission info\n• Applying for scholarships\n• Platform features and policies\n\nWhat would you like to explore?";
+      }
+      if (lowerMsg.match(/^(thanks|thank you|thx|ty)$/)) {
+        return "You're very welcome! 😊 Feel free to ask if you need anything else.";
+      }
+      if (lowerMsg.match(/^(bye|goodbye|see you|cya)$/)) {
+        return "Goodbye! Have a great day! 👋 Come back anytime you need help.";
+      }
+      if (lowerMsg.includes('how are you')) {
+        return "I'm doing great, thanks for asking! 😊 I'm here and ready to help you with any educational queries. What can I do for you?";
+      }
+      
+      return "I'm here to help! I can assist you with courses, colleges, scholarships, and platform information. What would you like to know?";
+    }
+    
+    return response;
+    
+  } catch (error) {
+    console.error('General AI error:', error);
+    
+    // Robust fallbacks
+    const lowerMsg = message.toLowerCase();
+    if (lowerMsg.match(/^(hi|hello|hey)$/)) {
+      return "Hello! 👋 I'm here to help you with courses, colleges, and scholarships. What can I do for you?";
+    }
+    if (lowerMsg.includes('who are you')) {
+      return "I'm EduBot, your educational platform assistant! I help students find the right courses, colleges, and scholarships. Ask me anything!";
+    }
+    
+    return "I'm experiencing a temporary issue, but I'm here to help! Could you please rephrase your question?";
+  }
+}
+
+// ========================================
+// MAIN HANDLER
+// ========================================
 export async function GET(request: NextRequest) {
   const message = request.nextUrl.searchParams.get("message");
 
@@ -293,51 +576,86 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Step 1: Check predefined Q&A
-    console.log("Checking predefined answers...");
-    const predefinedAnswer = await findPredefinedAnswer(message);
+    console.log('\n=== New Query ===');
+    console.log('User:', message);
 
-    if (predefinedAnswer) {
-      console.log("Found predefined answer");
-      return NextResponse.json({
-        message: predefinedAnswer,
-        source: "predefined",
-      });
+    // Step 1: Classify intent
+    const intent = await determineIntent(message);
+    console.log('Intent:', intent);
+
+    let response: string | null = null;
+    let source: string = '';
+
+    // Step 2: Route to appropriate handler with fallback chain
+    if (intent === 'predefined') {
+      response = await handlePredefined(message);
+      if (response) {
+        source = 'predefined';
+        console.log('Source: Predefined Q&A');
+      } else {
+        console.log('No predefined match, trying general AI...');
+        response = await handleGeneral(message);
+        source = 'general_fallback';
+      }
+    } 
+    else if (intent === 'database') {
+      response = await handleDatabase(message);
+      if (response) {
+        source = 'database';
+        console.log('Source: Database Query');
+      } else {
+        console.log('Database query failed, trying general AI...');
+        response = await handleGeneral(message);
+        source = 'general_fallback';
+      }
+    } 
+    else {
+      response = await handleGeneral(message);
+      source = 'general';
+      console.log('Source: General AI');
     }
 
-    // Step 2: Generate SQL query
-    console.log("Generating SQL query...");
-    const sqlQuery = await generateSQLQuery(message);
-
-    if (!sqlQuery) {
-      return NextResponse.json({
-        message: "I'm sorry, I couldn't understand your question or find relevant data.",
-        source: "error",
-      });
-    }
-
-    // Step 3: Execute query
-    console.log("Executing query:", sqlQuery);
-    const data = await executeQuery(sqlQuery);
-
-    // Step 4: Generate response
-    console.log("Generating response...");
-    const response = await generateResponse(message, data);
+    console.log('Response:', response?.substring(0, 100) + '...');
+    console.log('=================\n');
 
     return NextResponse.json({
       message: response,
-      source: "database",
-      debug: { sqlQuery, rowCount: data.length },
+      source,
+      intent,
     });
+
   } catch (error: unknown) {
     console.error("Chatbot error:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    
     return NextResponse.json(
       {
         error: "Something went wrong processing your request.",
         details: process.env.NODE_ENV === "development" ? errorMessage : undefined,
       },
       { status: 500 }
+    );
+  }
+}
+
+// POST handler for standard REST API usage
+export async function POST(request: NextRequest) {
+  try {
+    const { message } = await request.json();
+    
+    if (!message) {
+      return NextResponse.json({ error: "Message is required" }, { status: 400 });
+    }
+
+    const url = new URL(request.url);
+    url.searchParams.set('message', message);
+    const mockRequest = new NextRequest(url);
+    
+    return await GET(mockRequest);
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Invalid request body" },
+      { status: 400 }
     );
   }
 }

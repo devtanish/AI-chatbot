@@ -156,7 +156,7 @@ export default function ChatWidget() {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const quickQuestions: string[] = ["How do I apply?", "What are the fees?", "Show events"];
+  const quickQuestions: string[] = ["How can I purchase a course?", "Do you guarantee college admission?", "Are there free trial classes?"];
 
   return (
     <div className="min-h-screen bg-linear-to-br flex items-center justify-center p-4">
